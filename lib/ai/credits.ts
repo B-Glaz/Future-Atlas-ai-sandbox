@@ -8,7 +8,9 @@ import { creditQuarters, secondsUntilKolkataMidnight } from "@/lib/ai/credit-pol
 import { authorizeApiKey, authorizeUser, completeUser, hashKey, isMissingTable } from "@/lib/platform/credits/daily";
 import { confirmApiToken } from "@/lib/platform/api-keys/tokens";
 import { isSandboxSchemaError, refundSandboxCredit, takeSandboxCredit } from "@/lib/ai/sandbox-credits";
+import { isAllowedSandboxEmail, recordSandboxEmailUse } from "@/lib/ai/sandbox-emails";
 import { SANDBOX_CREDITS_EXHAUSTED_MESSAGE } from "@/lib/ai/sandbox-credit-copy";
+import { readEmailLogin } from "@/lib/auth/email-login";
 
 export class CreditError extends Error {
   constructor(
@@ -32,10 +34,13 @@ type Authorization = {
   userId?: string;
   sandbox?: boolean;
   sandboxHeld?: boolean;
+  sandboxEmail?: string;
 };
 
 const errors: Record<string, [number, string, number?]> = {
   FA_AUTH_REQUIRED: [401, "Sign in or provide a valid API key."],
+  FA_EMAIL_REQUIRED: [401, "Enter your email to use credits."],
+  FA_EMAIL_FORBIDDEN: [403, "This email is not on the list. Ask us to add it."],
   FA_INVALID_API_KEY: [401, "Invalid or expired API key."],
   FA_INVALID_IDEMPOTENCY_KEY: [400, "Idempotency-Key must contain 8 to 128 characters."],
   FA_IDEMPOTENCY_CONFLICT: [409, "Idempotency-Key was already used for another request."],
@@ -78,27 +83,24 @@ export async function consumeCredit(
     const principal = await authenticateApiKey(request);
     if (!principal.ok) throw new CreditError(principal.error, principal.status, principal.code, principal.status === 503 ? 30 : undefined);
     if (!principal.permissions.includes("ai:generate")) throw new CreditError("Insufficient permissions", 403, "FA_FORBIDDEN");
-    const requestId = crypto.randomUUID();
-    const idempotencyKey = request.headers.get("idempotency-key")?.trim() || requestId;
-    try {
-      const decision = await authorizeApiKey({
-        userId: principal.userId,
-        mode,
-        requestHash,
-        idempotencyKey,
-        apiKeyHash: principal.keyHash,
-      });
-      return { ...decision, apiKey: principal.keyHash, mode, userId: principal.userId };
-    } catch (error) {
-      if (isMissingTable(error as { code?: string; message?: string })) throw creditError("FA_SCHEMA_PENDING");
-      throw creditError(error instanceof Error ? error.message : "FA_ADMISSION_FAILED");
-    }
+    const admission = await admitSandbox(mode, `api:${principal.keyPrefix}`);
+    return { ...admission, apiKey: principal.keyHash, mode, userId: principal.userId };
   }
 
   const authorization = request.headers.get("authorization");
   const accessToken = authorization?.startsWith("Bearer ") ? authorization.slice(7).trim() : "";
   if (!accessToken || (!isTenantApiKey(accessToken) && !isUserAccessToken(accessToken))) {
-    return admitSandbox(mode);
+    const email = await readEmailLogin(request);
+    if (!email) throw creditError("FA_EMAIL_REQUIRED");
+    try {
+      if (!(await isAllowedSandboxEmail(email))) throw new CreditError("This email is not on the list. Ask us to add it.", 403, "FA_EMAIL_FORBIDDEN");
+    } catch (error) {
+      if (error instanceof CreditError) throw error;
+      if (isSandboxSchemaError(error) || (error instanceof Error && error.message === "FA_SCHEMA_PENDING")) throw creditError("FA_SCHEMA_PENDING");
+      throw creditError("FA_ADMISSION_FAILED");
+    }
+    const admission = await admitSandbox(mode, `email:${email}`);
+    return { ...admission, sandboxEmail: email };
   }
 
   const apiKey = isTenantApiKey(accessToken) || isUserAccessToken(accessToken) ? accessToken : "";
@@ -134,12 +136,12 @@ export async function consumeCredit(
   }
 }
 
-async function admitSandbox(mode: string): Promise<Authorization> {
+async function admitSandbox(mode: string, cacheScope = "sandbox"): Promise<Authorization> {
   try {
     const creditsRemaining = await takeSandboxCredit();
     return {
       requestId: crypto.randomUUID(),
-      cacheScope: "sandbox",
+      cacheScope,
       creditsRemaining,
       replayStatus: "new",
       replayPayload: null,
@@ -167,7 +169,20 @@ export async function completeCreditRequest(
   details?: { errorCode?: string; provider?: string; durationMs?: number }
 ) {
   if (authorization.sandbox) {
-    if (status === "completed") authorization.sandboxHeld = false;
+    if (status === "completed") {
+      authorization.sandboxHeld = false;
+      if (authorization.sandboxEmail) {
+        try {
+          await recordSandboxEmailUse(authorization.sandboxEmail);
+        } catch (error) {
+          console.error(JSON.stringify({
+            event: "sandbox_email_usage_failed",
+            requestId: authorization.requestId,
+            code: error instanceof Error ? error.message.slice(0, 120) : "unknown",
+          }));
+        }
+      }
+    }
     if (status === "failed" && authorization.sandboxHeld) {
       authorization.sandboxHeld = false;
       try {

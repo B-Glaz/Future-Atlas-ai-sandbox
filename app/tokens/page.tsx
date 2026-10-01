@@ -14,7 +14,7 @@ export default function TokensPage() {
           API keys
         </h1>
         <p className="mt-3 text-sm leading-6 text-slate-500">
-          Create and manage API keys for accessing the API. Each key is shown once. Website sign-in is separate and still uses your Google session.
+          Create and manage API keys for the API. Each key is shown once. The website tools do not need a key.
         </p>
         <div className="mt-8">
           <ProtectedTool>

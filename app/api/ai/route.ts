@@ -824,9 +824,10 @@ If you do not have enough information, say so.
             mode,
             personality: personality.name,
             cached: true,
+            creditsRemaining: admission.creditsRemaining,
             requestId: admission.requestId,
           };
-          await completeCreditRequest(request, admission, "failed", undefined, { errorCode: "AI_CACHE_HIT", durationMs: Date.now() - requestStartedAt });
+          await completeCreditRequest(request, admission, "completed", payload, { durationMs: Date.now() - requestStartedAt });
           return aiResultResponse(streamRequested, admission.requestId, payload);
         } catch {
           responseCache.delete(cacheKey);
@@ -838,9 +839,10 @@ If you do not have enough information, say so.
           mode,
           personality: personality.name,
           cached: true,
+          creditsRemaining: admission.creditsRemaining,
           requestId: admission.requestId,
         };
-        await completeCreditRequest(request, admission, "failed", undefined, { errorCode: "AI_CACHE_HIT", durationMs: Date.now() - requestStartedAt });
+        await completeCreditRequest(request, admission, "completed", payload, { durationMs: Date.now() - requestStartedAt });
         return aiResultResponse(streamRequested, admission.requestId, payload, { delta: cachedResponse });
       }
     }
@@ -881,9 +883,10 @@ If you do not have enough information, say so.
             mode,
             personality: personality.name,
             cached: true,
+            creditsRemaining: admission.creditsRemaining,
             requestId: admission.requestId,
           };
-          await completeCreditRequest(request, admission, "failed", undefined, { errorCode: "AI_IN_FLIGHT_REUSE", durationMs: Date.now() - requestStartedAt });
+          await completeCreditRequest(request, admission, "completed", payload, { durationMs: Date.now() - requestStartedAt });
           return aiResultResponse(streamRequested, admission.requestId, payload);
         } catch {
           responseCache.delete(cacheKey);
@@ -897,9 +900,10 @@ If you do not have enough information, say so.
         mode,
         personality: personality.name,
         cached: true,
+        creditsRemaining: admission.creditsRemaining,
         requestId: admission.requestId,
       };
-      await completeCreditRequest(request, admission, "failed", undefined, { errorCode: "AI_IN_FLIGHT_REUSE", durationMs: Date.now() - requestStartedAt });
+      await completeCreditRequest(request, admission, "completed", payload, { durationMs: Date.now() - requestStartedAt });
       return aiResultResponse(streamRequested, admission.requestId, payload, { delta: response });
     }
 

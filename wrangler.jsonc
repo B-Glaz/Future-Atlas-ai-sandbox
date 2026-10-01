@@ -10,7 +10,7 @@
   ],
 
   "vars": {
-    "OPENROUTER_MODEL": "inclusionai/ling-3.0-flash-fin:free",
+    "OPENROUTER_MODEL": "inclusionai/ling-3.0-flash-sante:free",
     "AI_ENABLED": "true",
     "NEXT_PUBLIC_SUPABASE_URL": "https://kfnnvnmqxxjhklvrzdvs.supabase.co",
     "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY": "sb_publishable_uqX_pEjmbg53_yHGVm8Wgg_P5pC-wQk",

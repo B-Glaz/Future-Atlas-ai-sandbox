@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "test": "node --no-warnings --experimental-strip-types scripts/check-structured-output.mjs && node --no-warnings --experimental-strip-types scripts/check-provider-fallback.mjs",
+    "sandbox:api-key": "node --no-warnings --experimental-strip-types scripts/sandbox-api-key.mjs",
     "cf:build": "opennextjs-cloudflare build",
     "preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
     "deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",

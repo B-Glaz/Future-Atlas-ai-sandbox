@@ -3,11 +3,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { AIMode } from "@/lib/ai/types";
-import {
-  getAIClientCacheKey,
-  readAIClientCache,
-  writeAIClientCache,
-} from "@/lib/ai/client-cache";
 import { requestAI } from "@/lib/ai/request";
 import { readToolContext } from "@/lib/client/local-history";
 import { useAuth } from "@/components/auth/AuthGate";
@@ -146,9 +141,9 @@ export default function FutureAtlasAI({
   embedded = false,
 }: FutureAtlasAIProps) {
   const router = useRouter();
-  const { user } = useAuth();
+  const { email } = useAuth();
   const config = personality[mode];
-  const storageKey = `future-atlas-ai-${mode}:${user?.id || "guest"}`;
+  const storageKey = `future-atlas-ai-${mode}:${email || "guest"}`;
   const [messages, setMessages] = useState<Message[]>(() =>
     getInitialMessages(config.intro)
   );
@@ -246,27 +241,8 @@ export default function FutureAtlasAI({
         mode,
         message,
         history,
-        context: readToolContext(user?.id),
+        context: readToolContext(email),
       };
-      const cacheKey = getAIClientCacheKey(requestBody);
-      const cachedData = readAIClientCache<{ response?: string }>(cacheKey);
-
-      if (cachedData?.response) {
-        const assistantMessageId = nextMessageIdRef.current;
-        nextMessageIdRef.current += 1;
-
-        const assistantMessage: Message = {
-          id: assistantMessageId,
-          role: "assistant",
-          content: cachedData.response,
-        };
-
-        setMessages((previous) => [
-          ...previous,
-          assistantMessage,
-        ]);
-        return;
-      }
 
       const data = await requestAI<{ response?: string }>(requestBody, {
         onDelta: (text) => {
@@ -310,10 +286,6 @@ export default function FutureAtlasAI({
         const id = assistantMessageId;
         setMessages((previous) => previous.map((item) => item.id === id ? { ...item, content: responseText } : item));
       }
-
-      writeAIClientCache(cacheKey, {
-        response: responseText,
-      });
     } catch (error) {
       console.error("Chat error:", error);
 

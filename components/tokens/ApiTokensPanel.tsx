@@ -3,8 +3,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Check, Copy } from "lucide-react";
 
-import { supabase } from "@/lib/supabase";
-
 type ApiKeyRecord = {
   id: string;
   name: string;
@@ -30,11 +28,7 @@ type IssuedKey = {
 
 type ExpiresIn = "never" | "30d" | "90d" | "1y" | "custom";
 
-async function sessionHeaders() {
-  const { data } = await supabase.auth.getSession();
-  if (!data.session) throw new Error("Sign in required.");
-  return { Authorization: `Bearer ${data.session.access_token}`, "Content-Type": "application/json" };
-}
+const jsonHeaders = { "Content-Type": "application/json" };
 
 function formatDate(value?: string | null) {
   if (!value) return "Never";
@@ -73,7 +67,7 @@ export default function ApiTokensPanel() {
   const [loaded, setLoaded] = useState(false);
 
   const loadKeys = useCallback(async () => {
-    const response = await fetch("/api/api-keys", { headers: await sessionHeaders() });
+    const response = await fetch("/api/api-keys");
     const payload = await response.json().catch(() => null);
     if (!response.ok) throw new Error(payload?.error || "Could not load API keys.");
     setKeys(payload.keys || []);
@@ -108,7 +102,7 @@ export default function ApiTokensPanel() {
     const allowedOrigins = options?.origins ?? origins.split(/[\n,]+/).map((origin) => origin.trim()).filter(Boolean);
     const response = await fetch("/api/api-keys", {
       method: "POST",
-      headers: await sessionHeaders(),
+      headers: jsonHeaders,
       body: JSON.stringify({
         name: nextName.trim(),
         expiresIn: nextExpires,
@@ -160,7 +154,7 @@ export default function ApiTokensPanel() {
             {key.status === "active" && (
               <div className="mt-5 flex flex-wrap gap-2">
                 <button type="button" disabled={Boolean(busy)} onClick={() => void run(`revoke-${key.id}`, async () => {
-                  const response = await fetch("/api/api-keys", { method: "DELETE", headers: await sessionHeaders(), body: JSON.stringify({ id: key.id }) });
+                  const response = await fetch("/api/api-keys", { method: "DELETE", headers: jsonHeaders, body: JSON.stringify({ id: key.id }) });
                   const payload = await response.json().catch(() => null);
                   if (!response.ok) throw new Error(payload?.error || "Could not revoke the API key.");
                   await loadKeys();
@@ -218,12 +212,12 @@ export default function ApiTokensPanel() {
           </div>
         </section>
       ) : (
-        <button type="button" onClick={() => { setIssued(null); setCreating(true); }} className="justify-self-start rounded-lg bg-slate-900 px-5 py-3 text-sm font-semibold text-white">
+        <button type="button" onClick={() => { setIssued(null); setOrigins((current) => current || window.location.origin); setCreating(true); }} className="justify-self-start rounded-lg bg-slate-900 px-5 py-3 text-sm font-semibold text-white">
           + Create API key
         </button>
       )}
 
-      <p className="text-sm leading-6 text-slate-500">Use the key in the <code className="rounded bg-slate-100 px-1">X-API-Key</code> header. It authenticates the request by itself. Website sign-in still uses your Google session.</p>
+      <p className="text-sm leading-6 text-slate-500">Use the key in the <code className="rounded bg-slate-100 px-1">X-API-Key</code> header. Send the same website origin in <code className="rounded bg-slate-100 px-1">X-Client-Origin</code>.</p>
     </div>
   );
 }

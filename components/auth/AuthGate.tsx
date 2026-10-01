@@ -7,15 +7,30 @@ import { LockKeyhole, X } from "lucide-react";
 
 import { supabase } from "@/lib/supabase";
 import { accountHistorySnapshot, clearAccountHistory } from "@/lib/client/local-history";
+import { normalizeEmail } from "@/lib/auth/email-address";
 
 type AuthContextValue = {
   user: User | null;
+  email: string;
+  signedIn: boolean;
   loading: boolean;
   requireAuth: (path?: string) => void;
+  openLogin: () => void;
+  signInWithEmail: (email: string) => Promise<void>;
   signOut: () => Promise<void>;
   deleteAccount: () => Promise<void>;
   backupHistory: () => Promise<void>;
 };
+
+const EMAIL_STORAGE_KEY = "future-atlas-email";
+
+function readStoredEmail() {
+  try {
+    return normalizeEmail(localStorage.getItem(EMAIL_STORAGE_KEY) || "");
+  } catch {
+    return "";
+  }
+}
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 const AUTH_TIMEOUT_MS = 15_000;
@@ -43,30 +58,70 @@ declare global {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
+  const [email, setEmail] = useState("");
+  const [signedIn, setSignedIn] = useState(false);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
+  const pendingPath = useRef("");
 
   useEffect(() => {
+    let cancelled = false;
     const syncProfile = (accessToken?: string) => {
       if (!accessToken) return;
       void fetch("/api/profile", { method: "POST", headers: { Authorization: `Bearer ${accessToken}` } });
     };
-    supabase.auth.getSession().then(({ data }) => {
+    const stored = readStoredEmail();
+    if (stored) setEmail(stored);
+    const session = supabase.auth.getSession().then(({ data }) => {
+      if (cancelled) return;
       setUser(data.session?.user ?? null);
-      setLoading(false);
       syncProfile(data.session?.access_token);
     });
-    const { data } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
-      setLoading(false);
-      syncProfile(session?.access_token);
+    const login = fetch("/api/login").then((response) => response.json()).then((payload) => {
+      if (!cancelled) setSignedIn(Boolean(payload?.signedIn));
+    }).catch(() => undefined);
+    void Promise.all([session, login]).finally(() => {
+      if (!cancelled) setLoading(false);
     });
-    return () => data.subscription.unsubscribe();
+    const { data } = supabase.auth.onAuthStateChange((_event, sessionState) => {
+      setUser(sessionState?.user ?? null);
+      syncProfile(sessionState?.access_token);
+    });
+    return () => {
+      cancelled = true;
+      data.subscription.unsubscribe();
+    };
   }, []);
 
-  const requireAuth = useCallback((path?: string) => {
+  const openLogin = useCallback(() => setOpen(true), []);
+
+  const signInWithEmail = useCallback(async (value: string) => {
+    const next = normalizeEmail(value);
+    if (!next) throw new Error("Enter a valid email address.");
+    const response = await fetch("/api/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: next }),
+    });
+    const payload = await response.json().catch(() => null) as { error?: string } | null;
+    if (!response.ok) throw new Error(payload?.error || "Could not sign in. Please try again.");
+    localStorage.setItem(EMAIL_STORAGE_KEY, next);
+    setEmail(next);
+    setSignedIn(true);
+    setOpen(false);
+    const path = pendingPath.current;
+    pendingPath.current = "";
     if (path) router.push(path);
   }, [router]);
+
+  const requireAuth = useCallback((path?: string) => {
+    if (!signedIn) {
+      pendingPath.current = path || "";
+      setOpen(true);
+      return;
+    }
+    if (path) router.push(path);
+  }, [router, signedIn]);
 
   const backupHistory = useCallback(async () => {
     if (!user) return;
@@ -82,7 +137,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signOut = useCallback(async () => {
     window.google?.accounts.id.disableAutoSelect();
-    await supabase.auth.signOut();
+    localStorage.removeItem(EMAIL_STORAGE_KEY);
+    await fetch("/api/login", { method: "DELETE" }).catch(() => undefined);
+    await supabase.auth.signOut().catch(() => undefined);
+    setEmail("");
+    setSignedIn(false);
     setUser(null);
     router.push("/");
   }, [router]);
@@ -99,12 +158,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [router]);
 
   return (
-    <AuthContext.Provider value={{ user, loading, requireAuth, signOut, deleteAccount, backupHistory }}>
+    <AuthContext.Provider value={{ user, email, signedIn, loading, requireAuth, openLogin, signInWithEmail, signOut, deleteAccount, backupHistory }}>
       {children}
-      {open && <AuthDialog onClose={() => setOpen(false)} onVerified={(verifiedUser) => {
-        setUser(verifiedUser);
-        setOpen(false);
-      }} />}
+      {open && <EmailLoginDialog initialEmail={email} onClose={() => setOpen(false)} onSubmit={signInWithEmail} />}
     </AuthContext.Provider>
   );
 }
@@ -116,7 +172,63 @@ export function useAuth() {
 }
 
 export function ProtectedTool({ children }: { children: ReactNode }) {
+  const { signedIn, loading, signInWithEmail, email } = useAuth();
+  if (loading) return <p className="rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-8 text-sm text-slate-500">Checking sign-in…</p>;
+  if (!signedIn) return <EmailLoginForm initialEmail={email} onSubmit={signInWithEmail} />;
   return <>{children}</>;
+}
+
+function EmailLoginForm({ initialEmail, onSubmit }: { initialEmail: string; onSubmit: (email: string) => Promise<void> }) {
+  const [value, setValue] = useState(initialEmail);
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  return (
+    <form
+      className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"
+      onSubmit={(event) => {
+        event.preventDefault();
+        setBusy(true);
+        setError("");
+        void onSubmit(value).catch((submitError) => {
+          setError(submitError instanceof Error ? submitError.message : "Could not sign in. Please try again.");
+          setBusy(false);
+        });
+      }}
+    >
+      <h2 className="text-lg font-semibold text-slate-900">Sign in with your email</h2>
+      <p className="mt-2 text-sm leading-6 text-slate-500">Enter the email we added for you. It is checked against that list before credits can be used.</p>
+      <label className="mt-4 block text-sm font-medium text-slate-700">
+        Email
+        <input
+          type="email"
+          required
+          autoComplete="email"
+          value={value}
+          onChange={(event) => setValue(event.target.value)}
+          className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+          placeholder="you@example.com"
+        />
+      </label>
+      {error && <p className="mt-3 text-sm text-rose-700" role="alert">{error}</p>}
+      <button type="submit" disabled={busy} className="mt-5 rounded-lg bg-slate-900 px-5 py-3 text-sm font-semibold text-white disabled:opacity-60">
+        {busy ? "Signing in…" : "Continue"}
+      </button>
+    </form>
+  );
+}
+
+function EmailLoginDialog({ initialEmail, onClose, onSubmit }: { initialEmail: string; onClose: () => void; onSubmit: (email: string) => Promise<void> }) {
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/45 px-4 backdrop-blur-sm">
+      <div className="w-full max-w-md">
+        <div className="mb-3 flex justify-end">
+          <button type="button" onClick={onClose} className="grid h-9 w-9 place-items-center rounded-full bg-white text-slate-500" aria-label="Close"><X size={16} /></button>
+        </div>
+        <EmailLoginForm initialEmail={initialEmail} onSubmit={onSubmit} />
+      </div>
+    </div>
+  );
 }
 
 type PendingGoogle = { credential: string; email: string };

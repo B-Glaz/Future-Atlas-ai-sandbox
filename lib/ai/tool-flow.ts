@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { requestAI } from "./request";
-import { getAIClientCacheKey, readAIClientCache, writeAIClientCache, clearAIClientCache } from "./client-cache";
+import { clearAIClientCache } from "./client-cache";
 import { getProgressiveOptions } from "@/lib/client/progressive-options";
 import { isCustomStudyInputValid } from "@/components/study-tools/CustomOptionInput";
 import { getStructuredResult } from "./structured-output";
@@ -26,8 +26,8 @@ export type ToolFlowConfig<T extends string> = {
 };
 
 export function useToolFlow<T extends string>(config: ToolFlowConfig<T>) {
-  const { user } = useAuth();
-  const userId = user?.id;
+  const { email } = useAuth();
+  const userId = email || undefined;
   const { steps, aiMode, aiMessage, getInputs, resultKey } = config;
 
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
@@ -92,15 +92,6 @@ export function useToolFlow<T extends string>(config: ToolFlowConfig<T>) {
         inputs: getInputs(finalAnswers),
         message: aiMessage,
       };
-      const cacheKey = getAIClientCacheKey(requestBody);
-      const cachedData = readAIClientCache<Record<string, unknown>>(cacheKey);
-
-      const cachedResult = cachedData ? getStructuredResult(cachedData, resultKey) : null;
-      if (cachedResult && (!Array.isArray(cachedResult) || cachedResult.length)) {
-        setResults(cachedResult);
-        return;
-      }
-
       const payload = await requestAI<Record<string, unknown>>(requestBody);
 
 
@@ -108,8 +99,6 @@ export function useToolFlow<T extends string>(config: ToolFlowConfig<T>) {
       if (!result || (Array.isArray(result) && !result.length)) {
         throw new Error(`The AI returned no ${resultKey} matches. Please try again.`);
       }
-
-      writeAIClientCache(cacheKey, payload);
       setResults(result);
       trackEvent("tool_result", { mode: aiMode, inputs: getInputs(finalAnswers) });
       saveToolContext(aiMode, getInputs(finalAnswers), result, userId);

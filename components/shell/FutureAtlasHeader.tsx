@@ -17,7 +17,7 @@ function resetTemporaryState() {
 
 export default function FutureAtlasHeader() {
   const router = useRouter();
-  const { user, signOut } = useAuth();
+  const { email, signedIn, signOut, openLogin } = useAuth();
 
   return (
     <nav className="border-b border-slate-200/70 bg-white/80 backdrop-blur-xl">
@@ -34,10 +34,15 @@ export default function FutureAtlasHeader() {
         </Link>
         <div className="ml-auto flex items-center gap-3">
           <CreditCounter />
-          {user && <>
           <Link href="/tokens" className="grid h-9 w-9 place-items-center rounded-full text-slate-500 hover:bg-slate-100 hover:text-slate-900" aria-label="API keys" title="API keys"><KeyRound size={16} /></Link>
-          <button type="button" onClick={() => void signOut()} className="grid h-9 w-9 place-items-center rounded-full text-slate-500 hover:bg-slate-100 hover:text-slate-900" aria-label="Sign out" title="Sign out"><LogOut size={16} /></button>
-          </>}
+          {signedIn ? (
+            <>
+              <span className="max-w-40 truncate text-xs text-slate-500" title={email}>{email || "Signed in"}</span>
+              <button type="button" onClick={() => void signOut()} className="grid h-9 w-9 place-items-center rounded-full text-slate-500 hover:bg-slate-100 hover:text-slate-900" aria-label="Sign out" title="Sign out"><LogOut size={16} /></button>
+            </>
+          ) : (
+            <button type="button" onClick={openLogin} className="rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Sign in</button>
+          )}
         </div>
       </div>
     </nav>
