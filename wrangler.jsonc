@@ -1,0 +1,30 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "future-atlas-ai-tools",
+  "main": "custom-worker.mjs",
+  "compatibility_date": "2026-09-15",
+  "compatibility_flags": [
+    "nodejs_compat",
+    "nodejs_compat_populate_process_env",
+    "global_fetch_strictly_public"
+  ],
+
+  "vars": {
+    "OPENROUTER_MODEL": "inclusionai/ling-3.0-flash-fin:free",
+    "AI_ENABLED": "true",
+    "NEXT_PUBLIC_SUPABASE_URL": "https://kfnnvnmqxxjhklvrzdvs.supabase.co",
+    "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY": "sb_publishable_uqX_pEjmbg53_yHGVm8Wgg_P5pC-wQk",
+    "NEXT_PUBLIC_GOOGLE_CLIENT_ID": "508514149239-s8ubgbr7ikf871vc88t3va7r6b7cmca4.apps.googleusercontent.com",
+    "SUPABASE_JWKS_URL": "https://kfnnvnmqxxjhklvrzdvs.supabase.co/auth/v1/.well-known/jwks.json"
+  },
+
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1
+  }
+}

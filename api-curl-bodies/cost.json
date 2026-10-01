@@ -1,0 +1,1 @@
+{"mode":"cost","responseFormat":"structured","message":"Generate a personalized study-abroad cost estimate from the user inputs.","inputs":{"country":"Germany","studyLevel":"Master's","course":"Computer Science / IT","budget":"Under ₹10 Lakhs"}}
