@@ -20,7 +20,8 @@ export default function FutureAtlasHeader() {
   const { email, signedIn, signOut, openLogin } = useAuth();
 
   return (
-    <nav className="border-b border-slate-200/70 bg-white/80 backdrop-blur-xl">
+    <nav className="relative border-b border-slate-200/70 bg-white/80 backdrop-blur-xl">
+      <span className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-amber-100 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-amber-950">Test Ground</span>
       <div className="mx-auto flex max-w-7xl items-center gap-4 px-6 py-5 lg:px-10">
         <button type="button" onClick={() => router.back()} className="flex h-9 w-9 items-center justify-center rounded-full text-slate-500 transition hover:bg-slate-100 hover:text-slate-900" aria-label="Go back" title="Go back">
           <ArrowLeft size={18} />

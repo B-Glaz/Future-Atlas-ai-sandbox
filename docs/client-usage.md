@@ -4,6 +4,8 @@ Use this document to run the Future Atlas tools on your site. A student answers 
 
 Each finished AI answer costs **1 credit** from the shared pool. That includes a tool result and a bot chat reply. A failed answer does not cost a credit. The reply includes how many credits are left.
 
+This sandbox has a test credit pool of 5,000.
+
 ## 1. Get your API key in the website
 
 Future Atlas does not give you a shared key. You create your own in the website, and that key is shown once.
