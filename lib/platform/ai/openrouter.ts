@@ -1,9 +1,12 @@
 import { OpenRouter } from "@openrouter/sdk";
 
-const PRIMARY_MODEL = "inclusionai/ling-3.0-flash-sante:free";
+const PRIMARY_MODEL = "inclusionai/ling-3.2-flash:free";
 const WATERFALL = [
   PRIMARY_MODEL,
-  "qwen/qwen3.8-27b:free",
+  "baidu/ernie-5.5-flash-preview:free",
+  "thinkingmachines/inkling-2-small:free",
+  "nvidia/nemotron-3.5-lightning:free",
+  "openrouter/free",
 ];
 
 const FIRST_TOKEN_MS = 12_000;
